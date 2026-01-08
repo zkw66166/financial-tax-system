@@ -1,21 +1,26 @@
-﻿import { LayoutDashboard, User, Database, BarChart3, Settings } from 'lucide-react';
+﻿import { LayoutDashboard, User, Database, BarChart3, Settings, MessageCircle } from 'lucide-react';
 
 // 企业用户侧边栏菜单
 export const sidebarItems = [
     {
         id: 'dashboard',
-        name: '控制台',
+        name: '工作台',
         icon: LayoutDashboard
     },
     {
-        id: 'data',
-        name: '数据管理',
-        icon: Database
+        id: 'ai-chat',
+        name: 'AI智问',
+        icon: MessageCircle
     },
     {
         id: 'profile',
         name: '企业画像',
         icon: BarChart3
+    },
+    {
+        id: 'data',
+        name: '数据管理',
+        icon: Database
     },
     {
         id: 'settings',
@@ -28,8 +33,13 @@ export const sidebarItems = [
 export const professionalSidebarItems = [
     {
         id: 'dashboard',
-        name: '控制台',
+        name: '工作台',
         icon: LayoutDashboard
+    },
+    {
+        id: 'ai-chat',
+        name: 'AI智问',
+        icon: MessageCircle
     },
     {
         id: 'data',

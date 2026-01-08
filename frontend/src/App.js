@@ -4,6 +4,7 @@ import Sidebar from './components/common/Sidebar';
 import Footer from './components/common/Footer';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import AIChat from './pages/AIChat';
 import Profile from './components/pages/Profile';
 import DataManagement from './components/pages/DataManagement';
 import Settings from './pages/Settings';
@@ -105,6 +106,8 @@ const App = () => {
         switch (activeTab) {
             case 'dashboard':
                 return <Dashboard {...commonProps} />;
+            case 'ai-chat':
+                return <AIChat {...commonProps} />;
             case 'profile':
                 return <Profile {...commonProps} />;
             case 'data':
@@ -112,8 +115,8 @@ const App = () => {
             case 'settings':
                 return <Settings {...commonProps} />;
             default:
-                return isProfessionalUser ? 
-                    <DataManagement {...commonProps} /> : 
+                return isProfessionalUser ?
+                    <DataManagement {...commonProps} /> :
                     <Dashboard {...commonProps} />;
         }
     };
