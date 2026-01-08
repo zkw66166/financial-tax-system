@@ -64,3 +64,11 @@ coverage/
 
 # Workspace files
 *.code-workspace
+
+# Python files (test scripts)
+*.py
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python

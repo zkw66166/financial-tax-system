@@ -1,27 +1,12 @@
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 module.exports = function (app) {
-    // 后端API代理
+    // 后端API代理 - 所有 /api 请求都转发到本地后端服务器
     app.use(
         '/api',
         createProxyMiddleware({
             target: 'http://localhost:3001',
             changeOrigin: true,
-        })
-    );
-
-    // AI API代理
-    app.use(
-        '/api/ai',
-        createProxyMiddleware({
-            target: 'https://api.siliconflow.cn',
-            changeOrigin: true,
-            pathRewrite: {
-                '^/api/ai': '/v1'
-            },
-            onProxyReq: (proxyReq, req, res) => {
-                console.log('Proxying AI request to:', proxyReq.path);
-            }
         })
     );
 };

@@ -1,13 +1,165 @@
 import aiConfig from '../config/aiConfig.json';
 
 /**
- * 调用AI API获取回答
+ * 获取当前配置的 AI 提供商
+ */
+const getCurrentProvider = () => {
+    const defaultProvider = aiConfig.defaultProvider || 'coze';
+    return aiConfig.models.find(m => m.provider === defaultProvider) || aiConfig.models[0];
+};
+
+/**
+ * 调用 Coze AI 流式 API
+ * @param {string} question - 用户提问
+ * @param {Function} onContent - 内容回调函数
+ * @param {Function} onComplete - 完成回调函数
+ * @param {Function} onError - 错误回调函数
+ * @returns {Function} 取消函数
+ */
+export const getAIAnswerStream = (question, onContent, onComplete, onError) => {
+    const config = getCurrentProvider();
+
+    if (!config.streaming) {
+        // 如果不支持流式,回退到普通 API
+        getAIAnswer(question)
+            .then(result => {
+                onContent(result.answer);
+                onComplete(result);
+            })
+            .catch(onError);
+        return () => { };
+    }
+
+    let eventSource = null;
+    let fullAnswer = '';
+
+    try {
+        console.log('[Frontend] Starting fetch to:', `${config.apiBase}/chat`);
+        console.log('[Frontend] Request body:', { question });
+
+        // 使用 fetch 发送 POST 请求并处理 SSE
+        fetch(`${config.apiBase}/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ question })
+        }).then(response => {
+            console.log('[Frontend] Response received, status:', response.status);
+            console.log('[Frontend] Response headers:', response.headers);
+
+            if (!response.ok) {
+                throw new Error(`HTTP错误：${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            const processStream = () => {
+                reader.read().then(({ done, value }) => {
+                    console.log('[Frontend] Stream chunk received, done:', done, 'value length:', value?.length);
+
+                    if (done) {
+                        console.log('[Frontend] Stream ended. fullAnswer length:', fullAnswer.length);
+                        if (fullAnswer) {
+                            onComplete({
+                                answer: fullAnswer,
+                                confidence: 90,
+                                policies: extractPolicies(fullAnswer)
+                            });
+                        } else {
+                            onError(new Error('未获取到回答'));
+                        }
+                        return;
+                    }
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    let currentEvent = null;
+
+                    for (const line of lines) {
+                        console.log('[Frontend] Processing line:', line);
+
+                        if (line.startsWith('event:')) {
+                            currentEvent = line.substring(6).trim();
+                            console.log('[Frontend] Event type:', currentEvent);
+                        } else if (line.startsWith('data:')) {
+                            try {
+                                const data = JSON.parse(line.substring(5).trim());
+                                console.log('[Frontend] Data received:', data);
+
+                                if (currentEvent === 'error' || data.error) {
+                                    onError(new Error(data.error || '服务器错误'));
+                                    return;
+                                } else if (currentEvent === 'done') {
+                                    if (fullAnswer) {
+                                        onComplete({
+                                            answer: fullAnswer,
+                                            confidence: 90,
+                                            policies: extractPolicies(fullAnswer)
+                                        });
+                                    }
+                                    return;
+                                } else if (currentEvent === 'message' && data.content) {
+                                    fullAnswer += data.content;
+                                    onContent(data.content);
+                                    console.log('[Frontend] Content added, total length:', fullAnswer.length);
+                                }
+                            } catch (e) {
+                                console.warn('解析 SSE 数据失败:', e, 'Line:', line);
+                            }
+                        }
+                    }
+
+                    processStream();
+                }).catch(error => {
+                    onError(error);
+                });
+            };
+
+            processStream();
+        }).catch(error => {
+            onError(error);
+        });
+
+    } catch (error) {
+        console.error('AI API调用错误:', error);
+        onError(error);
+    }
+
+    // 返回取消函数
+    return () => {
+        if (eventSource) {
+            eventSource.close();
+        }
+    };
+};
+
+/**
+ * 调用AI API获取回答（非流式，用于兼容）
  * @param {string} question - 用户提问
  * @returns {Promise<{answer: string, confidence: number, policies: string[]}>}
  */
 export const getAIAnswer = async (question) => {
-    const config = aiConfig.models[0]; // 使用第一个配置的模型
+    const config = getCurrentProvider();
 
+    // 如果是 Coze 且支持流式，使用流式 API
+    if (config.streaming) {
+        return new Promise((resolve, reject) => {
+            let fullAnswer = '';
+            getAIAnswerStream(
+                question,
+                (content) => { fullAnswer += content; },
+                (result) => { resolve(result); },
+                (error) => { reject(error); }
+            );
+        });
+    }
+
+    // SiliconFlow 非流式 API
     try {
         const response = await fetch(`${config.apiBase}/chat/completions`, {
             method: 'POST',
@@ -17,7 +169,7 @@ export const getAIAnswer = async (question) => {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: "Pro/zai-org/GLM-4.7",
+                model: config.model,
                 messages: [
                     {
                         role: 'system',
@@ -88,7 +240,8 @@ const extractPolicies = (answer) => {
 };
 
 const aiService = {
-    getAIAnswer
+    getAIAnswer,
+    getAIAnswerStream
 };
 
 export default aiService;

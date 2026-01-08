@@ -13,6 +13,7 @@ const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const authRouter = require('./routes/auth');
 const companiesRouter = require('./routes/companies');
 const uploadRouter = require('./routes/upload');
+const aiRouter = require('./routes/ai');
 
 // 初始化数据库
 require('./models/database');
@@ -68,6 +69,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/companies', companiesRouter);
 app.use('/api/upload', uploadRouter);
+app.use('/ai', aiRouter); // 注意：前端代理会将 /api/ai 转发为 /ai
 
 // 404 处理
 app.use(notFoundHandler);
