@@ -1,14 +1,30 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Building, User, Lock, Eye, EyeOff } from 'lucide-react';
 
 const Login = ({ onLogin }) => {
     const [loginForm, setLoginForm] = useState({
-        username: '',
-        password: '',
+        username: 'enterprise',
+        password: '123456',
         userType: 'enterprise'
     });
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+
+    // 根据用户类型自动填充用户名和密码
+    useEffect(() => {
+        const credentials = {
+            enterprise: { username: 'enterprise', password: '123456' },
+            accounting: { username: 'accounting', password: '123456' },
+            group: { username: 'group', password: '123456' }
+        };
+
+        const { username, password } = credentials[loginForm.userType];
+        setLoginForm(prev => ({
+            ...prev,
+            username,
+            password
+        }));
+    }, [loginForm.userType]);
 
     // 模拟用户数据
     const mockUsers = [
@@ -45,9 +61,9 @@ const Login = ({ onLogin }) => {
         try {
             // 模拟登录验证
             await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            const user = mockUsers.find(u => 
-                u.username === loginForm.username && 
+
+            const user = mockUsers.find(u =>
+                u.username === loginForm.username &&
                 u.password === loginForm.password &&
                 u.userType === loginForm.userType
             );
@@ -93,11 +109,10 @@ const Login = ({ onLogin }) => {
                                     key={type.value}
                                     type="button"
                                     onClick={() => setLoginForm({ ...loginForm, userType: type.value })}
-                                    className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-                                        loginForm.userType === type.value
-                                            ? 'bg-blue-600 text-white border-blue-600'
-                                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                    }`}
+                                    className={`px-3 py-2 text-sm rounded-lg border transition-colors ${loginForm.userType === type.value
+                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                        }`}
                                 >
                                     {type.label}
                                 </button>
