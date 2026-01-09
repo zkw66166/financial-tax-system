@@ -100,7 +100,8 @@ const App = () => {
             selectedCompany,
             userType,
             currentTime,
-            currentUser
+            currentUser,
+            companies
         };
 
         switch (activeTab) {

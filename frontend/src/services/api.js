@@ -198,19 +198,6 @@ class ApiService {
     async uploadAccountBalance(companyId, file) {
         return this.uploadFile('account-balance', companyId, file);
     }
-
-    // Dashboard相关接口
-    async getDashboardMetrics(companyId) {
-        return this.request(`/dashboard/metrics/${companyId}`);
-    }
-
-    async getSystemStatus() {
-        return this.request('/dashboard/system-status');
-    }
-
-    async getRecentActivities(companyId, limit = 10) {
-        return this.request(`/dashboard/recent-activities/${companyId}?limit=${limit}`);
-    }
 }
 
 export default new ApiService();

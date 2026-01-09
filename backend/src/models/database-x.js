@@ -1,10 +1,9 @@
-﻿const Database = require('better-sqlite3');
+const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
 class DatabaseManager {
     constructor() {
-        // 创建数据库文件夹
         const dbDir = path.join(__dirname, '../../database');
         if (!fs.existsSync(dbDir)) {
             fs.mkdirSync(dbDir, { recursive: true });
@@ -13,16 +12,15 @@ class DatabaseManager {
         this.dbPath = path.join(dbDir, 'financial.db');
         this.db = new Database(this.dbPath);
 
-        // 启用外键约束
         this.db.pragma('foreign_keys = ON');
 
         this.initializeTables();
     }
 
     initializeTables() {
-        console.log('开始初始化数据库表...');
+        console.log('Starting database table initialization...');
 
-        // 企业表 - 修复税号唯一约束问题
+        // Companies table with full fields
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS companies (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,63 +43,60 @@ class DatabaseManager {
             )
         `);
 
-        // 更新现有表结构
+        // Activity logs table
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id INTEGER,
+                user_id INTEGER,
+                activity_type TEXT,
+                description TEXT,
+                metadata TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies (id)
+            )
+        `);
+
+        // Update existing tables
         this.updateExistingTables();
 
-        console.log('数据库表初始化完成');
+        console.log('Database table initialization completed');
     }
 
     updateExistingTables() {
         try {
-            console.log('检查并更新现有表结构...');
+            console.log('Checking and updating existing table structures...');
 
-            // 检查和更新资产负债表
             this.updateBalanceSheetsTable();
-
-            // 检查和更新利润表
             this.updateIncomeStatementsTable();
-
-            // 检查和更新税务申报表 - 重点修复
             this.updateTaxReportsTable();
-
-            // 检查和更新发票表 - 重点修复
             this.updateInvoicesTable();
-
-            // 检查和更新人事薪酬表 - 重点修复
             this.updateHRSalaryTable();
-
-            // 检查和更新科目余额表 - 重点修复
             this.updateAccountBalancesTable();
 
         } catch (error) {
-            console.error('更新表结构失败:', error);
+            console.error('Failed to update table structures:', error);
         }
     }
 
     updateBalanceSheetsTable() {
         try {
-            // 检查表是否存在
             const tableExists = this.db.prepare(`
-                SELECT name FROM sqlite_master WHERE type='table' AND name='balance_sheets'
+                SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'balance_sheets'
             `).get();
 
             if (tableExists) {
-                // 检查是否有新字段
                 const columnInfo = this.db.pragma('table_info(balance_sheets)');
                 const columnNames = columnInfo.map(col => col.name);
 
                 const needsUpdate = !columnNames.includes('period_year');
 
                 if (needsUpdate) {
-                    console.log('重建资产负债表以添加期间字段...');
+                    console.log('Rebuilding balance_sheets table to add period fields...');
 
-                    // 备份现有数据
                     const existingData = this.db.prepare('SELECT * FROM balance_sheets').all();
-
-                    // 删除旧表
                     this.db.exec('DROP TABLE balance_sheets');
 
-                    // 创建新表
                     this.db.exec(`
                         CREATE TABLE balance_sheets (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,7 +142,6 @@ class DatabaseManager {
                         )
                     `);
 
-                    // 恢复数据，为旧数据设置默认期间
                     if (existingData.length > 0) {
                         const insertStmt = this.db.prepare(`
                             INSERT INTO balance_sheets (
@@ -165,9 +159,9 @@ class DatabaseManager {
                         for (const row of existingData) {
                             insertStmt.run(
                                 row.company_id,
-                                2024, // 默认年份
-                                12,   // 默认月份
-                                4,    // 默认季度
+                                2024,
+                                12,
+                                4,
                                 row.period_end_date,
                                 row.cash_and_equivalents || 0,
                                 row.trading_financial_assets || 0,
@@ -199,11 +193,10 @@ class DatabaseManager {
                                 row.created_at
                             );
                         }
-                        console.log(`恢复了 ${existingData.length} 条资产负债表数据`);
+                        console.log(`Restored ${existingData.length} balance sheet records`);
                     }
                 }
             } else {
-                // 创建新表
                 this.db.exec(`
                     CREATE TABLE balance_sheets (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -250,14 +243,14 @@ class DatabaseManager {
                 `);
             }
         } catch (error) {
-            console.error('更新资产负债表失败:', error);
+            console.error('Failed to update balance_sheets table:', error);
         }
     }
 
     updateIncomeStatementsTable() {
         try {
             const tableExists = this.db.prepare(`
-                SELECT name FROM sqlite_master WHERE type='table' AND name='income_statements'
+                SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'income_statements'
             `).get();
 
             if (tableExists) {
@@ -267,15 +260,11 @@ class DatabaseManager {
                 const needsUpdate = !columnNames.includes('period_year');
 
                 if (needsUpdate) {
-                    console.log('重建利润表以添加期间字段...');
+                    console.log('Rebuilding income_statements table to add period fields...');
 
-                    // 备份现有数据
                     const existingData = this.db.prepare('SELECT * FROM income_statements').all();
-
-                    // 删除旧表
                     this.db.exec('DROP TABLE income_statements');
 
-                    // 创建新表
                     this.db.exec(`
                         CREATE TABLE income_statements (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -305,7 +294,6 @@ class DatabaseManager {
                         )
                     `);
 
-                    // 恢复数据
                     if (existingData.length > 0) {
                         const insertStmt = this.db.prepare(`
                             INSERT INTO income_statements (
@@ -319,10 +307,10 @@ class DatabaseManager {
                         for (const row of existingData) {
                             insertStmt.run(
                                 row.company_id,
-                                2024, // 默认年份
-                                12,   // 默认月份
-                                4,    // 默认季度
-                                row.period || '2024年',
+                                2024,
+                                12,
+                                4,
+                                row.period || '2024',
                                 row.operating_revenue || 0,
                                 row.operating_costs || 0,
                                 row.taxes_and_surcharges || 0,
@@ -338,11 +326,10 @@ class DatabaseManager {
                                 row.created_at
                             );
                         }
-                        console.log(`恢复了 ${existingData.length} 条利润表数据`);
+                        console.log(`Restored ${existingData.length} income statement records`);
                     }
                 }
             } else {
-                // 创建新表
                 this.db.exec(`
                     CREATE TABLE income_statements (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -373,14 +360,14 @@ class DatabaseManager {
                 `);
             }
         } catch (error) {
-            console.error('更新利润表失败:', error);
+            console.error('Failed to update income_statements table:', error);
         }
     }
 
     updateTaxReportsTable() {
         try {
             const tableExists = this.db.prepare(`
-                SELECT name FROM sqlite_master WHERE type='table' AND name='tax_reports'
+                SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'tax_reports'
             `).get();
 
             if (tableExists) {
@@ -390,7 +377,7 @@ class DatabaseManager {
                 const needsUpdate = !columnNames.includes('period_quarter');
 
                 if (needsUpdate) {
-                    console.log('重建税务申报表以添加完整期间字段...');
+                    console.log('Rebuilding tax_reports table to add complete period fields...');
 
                     const existingData = this.db.prepare('SELECT * FROM tax_reports').all();
                     this.db.exec('DROP TABLE tax_reports');
@@ -439,7 +426,7 @@ class DatabaseManager {
                                 row.created_at
                             );
                         }
-                        console.log(`恢复了 ${existingData.length} 条税务申报数据`);
+                        console.log(`Restored ${existingData.length} tax report records`);
                     }
                 }
             } else {
@@ -465,14 +452,14 @@ class DatabaseManager {
                 `);
             }
         } catch (error) {
-            console.error('更新税务申报表失败:', error);
+            console.error('Failed to update tax_reports table:', error);
         }
     }
 
     updateInvoicesTable() {
         try {
             const tableExists = this.db.prepare(`
-                SELECT name FROM sqlite_master WHERE type='table' AND name='invoices'
+                SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'invoices'
             `).get();
 
             if (tableExists) {
@@ -480,7 +467,7 @@ class DatabaseManager {
                 const columnNames = columnInfo.map(col => col.name);
 
                 if (!columnNames.includes('period_quarter')) {
-                    console.log('更新发票表结构...');
+                    console.log('Updating invoices table structure...');
                     this.db.exec('ALTER TABLE invoices ADD COLUMN period_quarter INTEGER DEFAULT 4');
                 }
             } else {
@@ -504,14 +491,14 @@ class DatabaseManager {
                 `);
             }
         } catch (error) {
-            console.error('更新发票表失败:', error);
+            console.error('Failed to update invoices table:', error);
         }
     }
 
     updateHRSalaryTable() {
         try {
             const tableExists = this.db.prepare(`
-                SELECT name FROM sqlite_master WHERE type='table' AND name='hr_salary_data'
+                SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'hr_salary_data'
             `).get();
 
             if (tableExists) {
@@ -519,7 +506,7 @@ class DatabaseManager {
                 const columnNames = columnInfo.map(col => col.name);
 
                 if (!columnNames.includes('period_quarter')) {
-                    console.log('更新人事薪酬表结构...');
+                    console.log('Updating hr_salary_data table structure...');
                     this.db.exec('ALTER TABLE hr_salary_data ADD COLUMN period_quarter INTEGER DEFAULT 4');
                 }
             } else {
@@ -541,14 +528,14 @@ class DatabaseManager {
                 `);
             }
         } catch (error) {
-            console.error('更新人事薪酬表失败:', error);
+            console.error('Failed to update hr_salary_data table:', error);
         }
     }
 
     updateAccountBalancesTable() {
         try {
             const tableExists = this.db.prepare(`
-                SELECT name FROM sqlite_master WHERE type='table' AND name='account_balances'
+                SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'account_balances'
             `).get();
 
             if (tableExists) {
@@ -556,7 +543,7 @@ class DatabaseManager {
                 const columnNames = columnInfo.map(col => col.name);
 
                 if (!columnNames.includes('period_quarter')) {
-                    console.log('更新科目余额表结构...');
+                    console.log('Updating account_balances table structure...');
                     this.db.exec('ALTER TABLE account_balances ADD COLUMN period_quarter INTEGER DEFAULT 4');
                 }
             } else {
@@ -579,9 +566,9 @@ class DatabaseManager {
                 `);
             }
 
-            // 创建员工表（如果不存在）
+            // Create employees table if not exists
             const employeesTableExists = this.db.prepare(`
-                SELECT name FROM sqlite_master WHERE type='table' AND name='employees'
+                SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'employees'
             `).get();
 
             if (!employeesTableExists) {
@@ -600,58 +587,44 @@ class DatabaseManager {
                 `);
             }
         } catch (error) {
-            console.error('更新科目余额表失败:', error);
+            console.error('Failed to update account_balances table:', error);
         }
     }
 
-    // 兼容 sqlite3 的 API
+    // Wrapper methods for better-sqlite3 compatibility
     all(sql, params = [], callback) {
-        if (typeof params === 'function') {
-            callback = params;
-            params = [];
-        }
-
         try {
             const stmt = this.db.prepare(sql);
-            const rows = stmt.all(params);
-            callback(null, rows);
+            const rows = stmt.all(...params);
+            if (callback) callback(null, rows);
+            return rows;
         } catch (error) {
-            callback(error);
+            if (callback) callback(error, null);
+            throw error;
         }
     }
 
     get(sql, params = [], callback) {
-        if (typeof params === 'function') {
-            callback = params;
-            params = [];
-        }
-
         try {
             const stmt = this.db.prepare(sql);
-            const row = stmt.get(params);
-            callback(null, row);
+            const row = stmt.get(...params);
+            if (callback) callback(null, row);
+            return row;
         } catch (error) {
-            callback(error);
+            if (callback) callback(error, null);
+            throw error;
         }
     }
 
     run(sql, params = [], callback) {
-        if (typeof params === 'function') {
-            callback = params;
-            params = [];
-        }
-
         try {
             const stmt = this.db.prepare(sql);
-            const result = stmt.run(params);
-            // 模拟 sqlite3 的回调上下文
-            const context = {
-                lastID: result.lastInsertRowid,
-                changes: result.changes
-            };
-            callback.call(context, null);
+            const result = stmt.run(...params);
+            if (callback) callback(null, result);
+            return result;
         } catch (error) {
-            callback(error);
+            if (callback) callback(error, null);
+            throw error;
         }
     }
 
@@ -664,6 +637,5 @@ class DatabaseManager {
     }
 }
 
-// 创建单例实例
 const dbManager = new DatabaseManager();
 module.exports = dbManager;
